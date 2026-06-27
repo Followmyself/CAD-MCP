@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+
+# 日志
+*.log
+
+# 输出
+output/
+
+# 本地 MCP 配置（使用 配置参考/ 中的模板）
+.mcp.json
+
+# 临时文件
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db

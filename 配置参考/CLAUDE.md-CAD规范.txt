@@ -1,0 +1,26 @@
+## CAD 绘图规范（来自 CLAUDE.md）
+
+- 控制 CAD 软件（AutoCAD / GstarCAD / ZWCAD）绘图时，**必须且只能通过 MCP 服务器 `CAD` 进行连接**，严禁绕过 MCP 直接使用 Python COM 接口（如 `win32com`）操作 CAD
+- 所有绘图操作（画线、画圆、创建图层、添加文字、标注等）统一使用 CAD-MCP 提供的工具
+
+## MCP 配置位置
+
+MCP 服务器配置在 `.mcp.json` 文件中，而非 `settings.json`：
+
+```json
+{
+  "mcpServers": {
+    "CAD": {
+      "command": "D:\\anaconda\\python.exe",
+      "args": ["C:\\Users\\温涛\\.claude\\tools\\CAD-MCP\\src\\server.py"]
+    }
+  }
+}
+```
+
+## COM 稳定性注意事项
+
+1. 避免使用 hatch.Evaluate() — 最重的 COM 调用
+2. 椭圆用多段线近似（360点 polyline）代替 AddEllipse
+3. 操作间加 command_delay=0.3
+4. COM STA 单线程模型 — 一个慢操作会拖垮全部后续调用
