@@ -46,6 +46,12 @@ class CADController:
         self.retry_max_attempts = config["cad"].get("retry_max_attempts", 5)
         self.retry_base_delay = config["cad"].get("retry_base_delay", 0.3)
         self.retry_backoff_factor = config["cad"].get("retry_backoff_factor", 2.0)
+        # 文字样式配置（中文字体支持）
+        text_cfg = config["cad"].get("text_style", {})
+        self.text_style_name = text_cfg.get("name", "CAD_MCP_CN")
+        self.text_style_font = text_cfg.get("font_name", "宋体")
+        self.text_style_charset = text_cfg.get("charset", 136)  # GB2312
+        self._chinese_style_ready = False
         # 有效的线宽值列表
         self.valid_lineweights = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211]
         logger.info("CAD控制器已初始化")
@@ -59,6 +65,82 @@ class CADController:
             "zwcad": ("ZWCAD.Application", "中望CAD"),
         }
         return cad_map.get(self.cad_type.lower(), ("AutoCAD.Application", "AutoCAD"))
+
+    def _setup_chinese_text_style(self) -> bool:
+        """设置中文字体文本样式，确保中文能正常显示
+
+        使用配置的字体和字符集创建文本样式，并将其设为当前样式。
+        如果样式已存在则复用，避免重复创建。
+
+        Returns:
+            True 表示样式已就绪
+        """
+        if not self.is_running():
+            return False
+
+        try:
+            style_name = self.text_style_name
+            font_name = self.text_style_font
+            charset = self.text_style_charset
+
+            # 检查样式是否已存在
+            style = None
+            for i in range(self._com_prop(self.doc.TextStyles, 'Count')):
+                try:
+                    s = self._com_retry(lambda i=i: self.doc.TextStyles.Item(i))
+                    if s and self._com_prop(s, 'Name') == style_name:
+                        style = s
+                        break
+                except Exception:
+                    continue
+
+            # 不存在则创建
+            if style is None:
+                style = self._com_retry(lambda: self.doc.TextStyles.Add(style_name))
+                logger.info(f"创建中文字体样式: '{style_name}'")
+
+                # 设置字体和字符集
+                # SetFont(Typeface, Bold, Italic, CharSet, PitchAndFamily)
+                try:
+                    style.SetFont(font_name, False, False, charset, 0)
+                    logger.info(f"中文字体已设置为: {font_name} (charset={charset})")
+                except Exception as fe:
+                    logger.warning(f"SetFont 失败 ({fe})，尝试 fontFile 方式...")
+                    # 回退：尝试通过 fontFile 属性设置
+                    if not self._set_font_via_file(style, font_name):
+                        logger.warning("无法设置中文字体，将使用默认字体")
+            else:
+                logger.debug(f"中文字体样式 '{style_name}' 已存在，直接复用")
+
+            # 设为当前文本样式
+            self._com_prop(self.doc, 'ActiveTextStyle', style)
+            self._chinese_style_ready = True
+            return True
+
+        except Exception as e:
+            logger.warning(f"设置中文字体样式失败: {e}，将使用默认字体")
+            self._chinese_style_ready = False
+            return False
+
+    def _set_font_via_file(self, style, font_name: str) -> bool:
+        """通过 fontFile 属性设置字体（备用方案）"""
+        # 常见中文字体文件映射
+        font_files = [
+            'simsun.ttc',
+            'simsun.ttf',
+            'msyh.ttc',     # 微软雅黑
+            'msyh.ttf',
+            'simfang.ttf',  # 仿宋
+            'simkai.ttf',   # 楷体
+        ]
+        for ff in font_files:
+            try:
+                style.fontFile = ff
+                logger.info(f"通过 fontFile 设置字体: {ff}")
+                return True
+            except Exception:
+                continue
+        return False
 
     def start_cad(self) -> bool:
         """启动CAD并创建或打开一个文档"""
@@ -150,6 +232,11 @@ class CADController:
                 raise Exception("文档对象无效")
 
             logger.info("CAD已成功启动和准备")
+
+            # 自动设置中文字体样式
+            if not self._chinese_style_ready:
+                self._setup_chinese_text_style()
+
             return True
 
         except Exception as e:
@@ -536,6 +623,13 @@ class CADController:
 
             # 添加文本
             text_obj = self._com_retry(lambda: self.doc.ModelSpace.AddText(text, position_array, height))
+
+            # 自动应用中文字体样式（确保中文正常显示）
+            if self._chinese_style_ready:
+                try:
+                    self._com_prop(text_obj, 'StyleName', self.text_style_name, silent=True)
+                except Exception:
+                    pass
 
             # 设置旋转角度
             if rotation != 0:

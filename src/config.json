@@ -9,7 +9,12 @@
         "command_delay": 0.5,
         "retry_max_attempts": 5,
         "retry_base_delay": 0.3,
-        "retry_backoff_factor": 2.0
+        "retry_backoff_factor": 2.0,
+        "text_style": {
+            "name": "CAD_MCP_CN",
+            "font_name": "宋体",
+            "charset": 136
+        }
     },
     "output": {
         "directory": "./output",
