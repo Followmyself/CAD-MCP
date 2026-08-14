@@ -16,10 +16,6 @@ build/
 
 # 输出
 output/
-autocad-plugin/bin/
-autocad-plugin/obj/
-autocad-plugin/CADMCP.bundle/Contents/Windows/*.dll
-autocad-plugin/CADMCP.bundle/Contents/Windows/*.pdb
 
 # 本地 MCP 配置（使用 配置参考/ 中的模板）
 .mcp.json
